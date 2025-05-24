@@ -12,6 +12,13 @@ let animationTimeoutId = null;
 // Maximum time to wait for animation before auto-reset (ms)
 const MAX_ANIMATION_WAIT = 3000;
 
+// Track if hard drop is in progress to prevent multiple hard drops
+let hardDropInProgress = false;
+
+// Global timeout to completely reset all locks and flags after a certain period
+let globalResetTimeoutId = null;
+const GLOBAL_RESET_TIMEOUT = 10000; // 10 seconds
+
 // Track consecutive API failures for circuit breaker pattern
 let consecutiveFailures = 0;
 const MAX_CONSECUTIVE_FAILURES = 3;
@@ -29,6 +36,54 @@ function resetAnimationLock() {
             clearTimeout(animationTimeoutId);
             animationTimeoutId = null;
         }
+    }
+    
+    // Also reset hard drop flag
+    if (hardDropInProgress) {
+        console.warn('Resetting stuck hard drop flag');
+        hardDropInProgress = false;
+    }
+}
+
+/**
+ * Global reset function that resets all locks and flags
+ * This is a last resort safety mechanism
+ * @export
+ */
+export function globalReset() {
+    console.warn('GLOBAL RESET triggered - resetting all locks and flags');
+    
+    // Reset animation lock
+    waitingForAnimation = false;
+    if (animationTimeoutId) {
+        clearTimeout(animationTimeoutId);
+        animationTimeoutId = null;
+    }
+    
+    // Reset hard drop flag
+    hardDropInProgress = false;
+    
+    // Reset circuit breaker
+    if (circuitBreakerActive) {
+        resetCircuitBreaker();
+    }
+    
+    // Clear any pending global reset timeout
+    if (globalResetTimeoutId) {
+        clearTimeout(globalResetTimeoutId);
+        globalResetTimeoutId = null;
+    }
+    
+    // Display a message to the user
+    const gameMessage = document.getElementById('game-message');
+    if (gameMessage) {
+        gameMessage.textContent = 'Game state reset. Continue playing.';
+        // Clear the message after 3 seconds
+        setTimeout(() => {
+            if (gameMessage.textContent === 'Game state reset. Continue playing.') {
+                gameMessage.textContent = '';
+            }
+        }, 3000);
     }
 }
 
@@ -48,6 +103,15 @@ function setAnimationLock() {
         resetAnimationLock();
         console.warn('Animation lock timed out after ' + MAX_ANIMATION_WAIT + 'ms');
     }, MAX_ANIMATION_WAIT);
+    
+    // Set up a global reset timeout as a last resort
+    if (globalResetTimeoutId) {
+        clearTimeout(globalResetTimeoutId);
+    }
+    
+    globalResetTimeoutId = setTimeout(() => {
+        globalReset();
+    }, GLOBAL_RESET_TIMEOUT);
 }
 
 /**
@@ -97,9 +161,29 @@ export async function sendAction(actionType, actionData = {}) {
         return null;
     }
     
-    // For hard_drop, force reset any existing animation lock
-    if (actionType === 'hard_drop' && waitingForAnimation) {
-        resetAnimationLock();
+    // Special handling for hard_drop
+    if (actionType === 'hard_drop') {
+        // Prevent multiple simultaneous hard drops
+        if (hardDropInProgress) {
+            console.warn('Hard drop already in progress, ignoring duplicate request');
+            return { success: false, message: 'Hard drop already in progress' };
+        }
+        
+        // Force reset any existing animation lock
+        if (waitingForAnimation) {
+            resetAnimationLock();
+        }
+        
+        // Set the hard drop flag
+        hardDropInProgress = true;
+        
+        // Set a safety timeout to reset the hard drop flag
+        setTimeout(() => {
+            if (hardDropInProgress) {
+                console.warn('Hard drop safety timeout triggered');
+                hardDropInProgress = false;
+            }
+        }, 5000); // 5 second safety timeout
     }
     
     try {
@@ -134,6 +218,11 @@ export async function sendAction(actionType, actionData = {}) {
         if (circuitBreakerActive) {
             resetCircuitBreaker();
         }
+        
+        // If this was a hard drop action, reset the flag
+        if (actionType === 'hard_drop') {
+            hardDropInProgress = false;
+        }
 
         const result = await response.json();
         
@@ -162,6 +251,11 @@ export async function sendAction(actionType, actionData = {}) {
         // Increment failure counter and check if we should activate circuit breaker
         consecutiveFailures++;
         console.error(`Error sending action (failure #${consecutiveFailures}):`, error);
+        
+        // If this was a hard drop action, reset the flag
+        if (actionType === 'hard_drop') {
+            hardDropInProgress = false;
+        }
         
         // Display user-friendly error message
         const gameMessage = document.getElementById('game-message');
@@ -232,6 +326,11 @@ async function sendClearMatches() {
         if (circuitBreakerActive) {
             resetCircuitBreaker();
         }
+        
+        // If this was a hard drop action, reset the flag
+        if (actionType === 'hard_drop') {
+            hardDropInProgress = false;
+        }
 
         const result = await response.json();
         
@@ -263,6 +362,11 @@ async function sendClearMatches() {
         // Increment failure counter and check if we should activate circuit breaker
         consecutiveFailures++;
         console.error(`Error clearing matches (failure #${consecutiveFailures}):`, error);
+        
+        // Reset hard drop flag in case it's still set
+        if (hardDropInProgress) {
+            hardDropInProgress = false;
+        }
         
         // Display user-friendly error message
         const gameMessage = document.getElementById('game-message');

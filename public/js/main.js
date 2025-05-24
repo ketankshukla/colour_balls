@@ -1,6 +1,10 @@
 // public/js/main.js - Application entry point
 console.log('Main script loaded');
 
+// Import the globalReset function from api-client.js
+// This is declared here but will be assigned in the DOMContentLoaded event
+let globalResetFunction = null;
+
 import { initializeGame, handleAction, resetGame, getCurrentState } from './game-state.js';
 import { init as initBoard } from './board.js';
 import { startGameLoop, stopGameLoop, pauseGame, resumeGame, isGamePaused } from './ui-controller.js';
@@ -9,6 +13,16 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM fully loaded and parsed');
     initBoard(); // Initialize the canvas and drawing contexts
     initializeGame(); // Fetch initial game state and render
+    
+    // Import the globalReset function from api-client.js
+    // This is a bit of a hack, but it allows us to access the function from another module
+    import('./api-client.js').then(module => {
+        // Store a reference to the globalReset function
+        globalResetFunction = module.globalReset || window.globalReset;
+        console.log('Emergency reset function imported:', globalResetFunction ? 'success' : 'failed');
+    }).catch(error => {
+        console.error('Failed to import globalReset function:', error);
+    });
 
     const startButton = document.getElementById('start-button');
     const gameMessage = document.getElementById('game-message');
@@ -110,5 +124,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Add a special emergency reset key combination (Shift+Esc)
+    document.addEventListener('keydown', (event) => {
+        // Check for Shift+Esc key combination
+        if (event.key === 'Escape' && event.shiftKey) {
+            console.warn('Emergency reset key combination detected!');
+            
+            // Call the globalReset function if available
+            if (typeof globalResetFunction === 'function') {
+                console.log('Triggering emergency reset...');
+                globalResetFunction();
+            } else {
+                console.error('Emergency reset function not available');
+                
+                // Fallback reset if the function isn't available
+                const gameMessage = document.getElementById('game-message');
+                if (gameMessage) {
+                    gameMessage.textContent = 'Emergency reset attempted. Try refreshing the page if issues persist.';
+                }
+                
+                // Try to reset game state
+                try {
+                    stopGameLoop();
+                    resetGame().catch(err => console.error('Reset failed:', err));
+                } catch (error) {
+                    console.error('Failed to perform emergency reset:', error);
+                }
+            }
+            
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    });
+    
     console.log('Game controls and event listeners initialized.');
 });
