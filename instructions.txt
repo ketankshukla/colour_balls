@@ -1,0 +1,19 @@
+ok so i want to create a game like tetris, but instead of tetris blocks falling from the top of the canvas, there will be colour balls falling.
+Each piece, which wil be a straight line of  will six different colour balls will drop from the top of the canvas
+and the player will be able to use the left arrow to move the piece left, right arrow to move the piece right,
+up arrow to rotate the piece and down arrow to move the piece toward the bottom fast and the space bar to drop the piece.
+
+Just like tetris where lines at the bottom of the canvas disappear,
+in this game, when pieces stack on top of each other and you have 3
+same colour balls align either horizontally, vertically or diagonally,
+that will be treated as a complete line and it will disappear and the
+space that is created will be filled with the individual ball that is above the space,
+and once those drop and another 3-ball line is created, that will disappear and so on.
+
+I want you to create this game in the balls folder - and more importantly, i want you to use the exact same file and folder
+structure that you used to help me create the tetris game, which is in the tetris folder. Use this as a reference.
+I want the UI, scoring panel and high score panels to look exactly the same, with all the dimensions and everything identical.
+The only difference is the game logic and shapes of the objects.
+
+Before you start to create anything, I ned you to verify to me that you completely understand what I want
+

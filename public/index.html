@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Colour Balls</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="game-container">
+            <!-- Game Info Column -->
+            <div class="game-info">
+                <div class="score-container">
+                    <div class="panel-title">
+                        <span class="panel-emoji">🏆</span>
+                        Score
+                    </div>
+                    <div class="score-value" id="score">0</div>
+                    <div class="level-value">Level: <span id="level">1</span></div>
+                    <div class="lines-value">Matches: <span id="matches">0</span></div>
+                </div>
+                <div class="next-piece">
+                    <div class="panel-title">
+                        <span class="panel-emoji">🔜</span>
+                        Next Piece
+                    </div>
+                    <canvas id="next-piece-canvas" width="100" height="100"></canvas>
+                </div>
+                <div class="controls">
+                    <div class="panel-title">
+                        <span class="panel-emoji">🎮</span>
+                        Controls
+                    </div>
+                    <p>
+                        <span class="controls-key">S</span>
+                        <span class="controls-action">Start game</span>
+                    </p>
+                    <p>
+                        <span class="controls-key">←</span>
+                        <span class="controls-action">Move left</span>
+                    </p>
+                    <p>
+                        <span class="controls-key">→</span>
+                        <span class="controls-action">Move right</span>
+                    </p>
+                    <p>
+                        <span class="controls-key">↑</span>
+                        <span class="controls-action">Rotate</span>
+                    </p>
+                    <p>
+                        <span class="controls-key">↓</span>
+                        <span class="controls-action">Soft drop</span>
+                    </p>
+                    <p>
+                        <span class="controls-key">Space</span>
+                        <span class="controls-action">Hard drop</span>
+                    </p>
+                    <p>
+                        <span class="controls-key">P</span>
+                        <span class="controls-action">Pause game</span>
+                    </p>
+                    <p>
+                        <span class="controls-key">R</span>
+                        <span class="controls-action">Reset game</span>
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Game Board Column -->
+            <canvas id="game-canvas" width="400" height="800"></canvas>
+            
+            <!-- High Scores Column -->
+            <div class="high-scores-column">
+                <div class="high-scores">
+                    <div class="panel-title">
+                        <span class="panel-emoji">📈</span>
+                        High Scores
+                    </div>
+                    <div class="high-scores-table-container">
+                        <table class="high-scores-table">
+                            <thead>
+                                <tr>
+                                    <th data-sort="name">Name</th>
+                                    <th data-sort="score">Score</th>
+                                    <th data-sort="level">Level</th>
+                                    <th data-sort="matches">Matches</th>
+                                    <th data-sort="date">Date & Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="high-scores-body">
+                                <!-- High scores will be populated here -->
+                                <tr>
+                                    <td colspan="5" style="text-align: center;">No high scores yet</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Modal Dialog -->
+    <div class="modal-overlay" id="score-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modal-title">Game Over!</h2>
+                <div class="modal-emoji" id="modal-emoji">🏆</div>
+            </div>
+            <div class="modal-score">Score: <span id="modal-score">0</span></div>
+            <div class="modal-level">Level: <span id="modal-level">1</span></div>
+            <div class="modal-lines">Matches: <span id="modal-matches">0</span></div>
+            <input type="text" class="modal-input" id="player-name" placeholder="Enter your name" maxlength="20">
+            <div>
+                <button class="modal-button" id="save-score">Save Score</button>
+                <button class="modal-button cancel" id="skip-score">Skip</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Game message removed as requested -->
+    <script src="js/main.js" type="module"></script>
+</body>
+</html>

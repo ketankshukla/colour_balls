@@ -1,0 +1,102 @@
+# Colour Balls Game Development Prompt
+
+## Game Concept
+Create a Tetris-like game with the following key differences:
+- Instead of Tetris blocks, the game uses colored balls
+- Each piece is a straight line of 6 different colored balls
+- When 3 or more same-colored balls align (horizontally, vertically, or diagonally), they disappear
+- After balls disappear, balls above will fall to fill the gaps, potentially creating chain reactions
+
+## Game Mechanics
+1. **Pieces**: Each piece consists of 6 balls in a straight line, with each ball having a random color
+2. **Movement**:
+   - Left Arrow: Move piece left
+   - Right Arrow: Move piece right
+   - Up Arrow: Rotate the piece
+   - Down Arrow: Move piece down faster
+   - Space Bar: Drop piece instantly to the bottom
+
+3. **Gameplay**:
+   - Pieces fall from the top of the canvas
+   - When pieces land, check for 3+ same-colored balls in a row (horizontal, vertical, diagonal)
+   - Remove matching balls and award points
+   - Balls above empty spaces fall down
+   - Check for new matches after balls fall (chain reactions)
+   - Game ends when pieces stack to the top
+
+4. **Scoring**:
+   - Points for each set of matching balls
+   - Bonus points for chain reactions
+   - Track and display high scores
+
+## Technical Requirements
+1. **Project Structure**: 
+   - Create a Flask project similar to the Connect Four game in the connect_four directory
+   - Use a modular architecture with proper separation of concerns from the start
+   - Implement a well-organized folder structure with modular components
+
+2. **Modular Code Organization**:
+   - Split backend code into logical modules (e.g., game_logic.py, ai_engine.py, api_routes.py, app.py)
+   - Organize frontend code using ES6 modules (e.g., board.js, game-state.js, ui-controller.js, api-client.js)
+   - Ensure clean interfaces between modules
+
+3. **UI Requirements**:
+   - Match the Tetris UI exactly (dimensions, layout, styling)
+   - Same scoring panel and high score display
+   - Only change the game objects and logic
+
+4. **Implementation**:
+   - Use Flask for the backend with a RESTful API structure
+   - Use JavaScript ES6 modules for the frontend
+   - Implement proper game state management
+   - Include sound effects and visual feedback
+   - Ensure responsive design
+   - Make the application Vercel-deployment ready
+
+## Development Tasks
+1. Set up the modular Flask project structure following the Connect Four example
+2. Design and implement the backend modules:
+   - Core game logic module
+   - API routes module
+   - Application factory module
+3. Design and implement the frontend ES6 modules:
+   - Board rendering module
+   - Game state management module
+   - UI controller module
+   - API client module
+4. Implement the ball pieces and their movement
+5. Develop the matching and disappearing mechanics
+6. Implement the gravity effect for balls to fall into empty spaces
+7. Create the scoring system and high score tracking
+8. Add visual effects and sound
+9. Ensure Vercel deployment compatibility
+10. Test and optimize performance
+11. Document the code and create user guides
+
+## Deliverables
+1. Complete, playable Colour Balls game with all mechanics implemented
+2. Well-structured, modular, and commented code
+3. Documentation including:
+   - README.md with game overview
+   - DEVELOPERS_GUIDE.md with technical details
+   - User instructions
+
+## References
+
+### Connect Four Project
+Use the Connect Four project in the connect_four folder as a reference for:
+- Modular Flask project structure
+- Separation of concerns in backend code
+- ES6 module organization in frontend code
+- RESTful API design
+- Vercel deployment configuration
+
+### Tetris Project
+Use the existing Tetris game in the tetris folder as a reference for:
+- UI design and dimensions
+- Game mechanics and controls
+- Game loop implementation
+- Scoring system
+- High score tracking
+
+The primary difference will be in the game objects (balls instead of Tetris blocks) and the matching/disappearing mechanics (3+ same-colored balls instead of complete lines).
