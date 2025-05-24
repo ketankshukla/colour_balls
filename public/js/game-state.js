@@ -129,20 +129,93 @@ export async function handleAction(actionType, actionData = {}) {
                 if (['move_left', 'move_right', 'move_down', 'rotate'].includes(actionType) && currentGameState.currentPiece) {
                     const piece = { ...currentGameState.currentPiece };
                     
-                    // Apply basic movement prediction
+                    // Get piece length based on orientation
+                    const pieceLength = piece.colors ? piece.colors.length : 6; // Default to 6 if colors not available
+                    
+                    // Apply basic movement prediction with proper boundary checking
                     switch (actionType) {
                         case 'move_left':
                             if (piece.x > 0) piece.x -= 1;
                             break;
                         case 'move_right':
-                            if (piece.x < (currentGameState.board[0].length - 1)) piece.x += 1;
+                            // Check right boundary based on piece orientation
+                            if (piece.orientation === 0 || piece.orientation === 180) {
+                                // Horizontal orientation - need to account for piece length
+                                const rightmostPosition = piece.orientation === 0 ? 
+                                    piece.x + (pieceLength - 1) : // For 0 degrees
+                                    piece.x; // For 180 degrees (leftmost ball is rightmost in terms of boundary)
+                                
+                                if (piece.orientation === 0) {
+                                    // Moving right with horizontal piece (→)
+                                    if (rightmostPosition < (currentGameState.board[0].length - 1)) {
+                                        piece.x += 1;
+                                    }
+                                } else {
+                                    // Moving right with reversed horizontal piece (←)
+                                    if (piece.x < (currentGameState.board[0].length - 1)) {
+                                        piece.x += 1;
+                                    }
+                                }
+                            } else {
+                                // Vertical orientation (just check the single column)
+                                if (piece.x < (currentGameState.board[0].length - 1)) {
+                                    piece.x += 1;
+                                }
+                            }
                             break;
                         case 'move_down':
-                            piece.y += 1;
+                            // Check bottom boundary based on piece orientation
+                            if (piece.orientation === 90 || piece.orientation === 270) {
+                                // Vertical orientation - need to account for piece length
+                                const lowestPosition = piece.orientation === 90 ? 
+                                    piece.y + (pieceLength - 1) : // For 90 degrees
+                                    piece.y; // For 270 degrees
+                                
+                                if (piece.orientation === 90) {
+                                    // Moving down with vertical piece (↓)
+                                    if (lowestPosition < (currentGameState.board.length - 1)) {
+                                        piece.y += 1;
+                                    }
+                                } else {
+                                    // Moving down with reversed vertical piece (↑)
+                                    if (piece.y < (currentGameState.board.length - 1)) {
+                                        piece.y += 1;
+                                    }
+                                }
+                            } else {
+                                // Horizontal orientation (just check the single row)
+                                if (piece.y < (currentGameState.board.length - 1)) {
+                                    piece.y += 1;
+                                }
+                            }
                             break;
                         case 'rotate':
-                            // Simple rotation prediction (just visual, no collision detection)
-                            piece.orientation = (piece.orientation + 90) % 360;
+                            // Calculate new orientation
+                            const newOrientation = (piece.orientation + 90) % 360;
+                            
+                            // Check if rotation would put piece out of bounds
+                            let canRotate = true;
+                            
+                            // Horizontal to vertical rotation boundary check
+                            if ((piece.orientation === 0 || piece.orientation === 180) && 
+                                (newOrientation === 90 || newOrientation === 270)) {
+                                // Check if vertical piece would extend below board
+                                if (piece.y + pieceLength > currentGameState.board.length) {
+                                    canRotate = false;
+                                }
+                            }
+                            // Vertical to horizontal rotation boundary check
+                            else if ((piece.orientation === 90 || piece.orientation === 270) && 
+                                    (newOrientation === 0 || newOrientation === 180)) {
+                                // Check if horizontal piece would extend beyond right edge
+                                if (piece.x + pieceLength > currentGameState.board[0].length) {
+                                    canRotate = false;
+                                }
+                            }
+                            
+                            if (canRotate) {
+                                piece.orientation = newOrientation;
+                            }
                             break;
                     }
                     
