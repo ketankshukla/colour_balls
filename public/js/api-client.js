@@ -6,6 +6,59 @@ const API_BASE_URL = '/api';
 // Flag to track if we're currently waiting for an animation to complete
 let waitingForAnimation = false;
 
+// Animation timeout ID for safety mechanism
+let animationTimeoutId = null;
+
+// Maximum time to wait for animation before auto-reset (ms)
+const MAX_ANIMATION_WAIT = 3000;
+
+// Track consecutive API failures for circuit breaker pattern
+let consecutiveFailures = 0;
+const MAX_CONSECUTIVE_FAILURES = 3;
+let circuitBreakerActive = false;
+let circuitRecoveryTimeout = null;
+
+/**
+ * Safety function to reset animation lock if it gets stuck
+ */
+function resetAnimationLock() {
+    if (waitingForAnimation) {
+        console.warn('Animation lock safety triggered - resetting stuck animation lock');
+        waitingForAnimation = false;
+        if (animationTimeoutId) {
+            clearTimeout(animationTimeoutId);
+            animationTimeoutId = null;
+        }
+    }
+}
+
+/**
+ * Sets up the animation lock with safety timeout
+ */
+function setAnimationLock() {
+    waitingForAnimation = true;
+    
+    // Clear any existing timeout
+    if (animationTimeoutId) {
+        clearTimeout(animationTimeoutId);
+    }
+    
+    // Set a safety timeout to prevent permanently stuck animation
+    animationTimeoutId = setTimeout(() => {
+        resetAnimationLock();
+        console.warn('Animation lock timed out after ' + MAX_ANIMATION_WAIT + 'ms');
+    }, MAX_ANIMATION_WAIT);
+}
+
+/**
+ * Reset the circuit breaker after a recovery period
+ */
+function resetCircuitBreaker() {
+    console.log('Resetting circuit breaker, attempting to resume normal API operations');
+    circuitBreakerActive = false;
+    consecutiveFailures = 0;
+}
+
 /**
  * Fetches the current game state from the server.
  * @returns {Promise<Object>} The game state.
@@ -30,6 +83,13 @@ export async function getGameState() {
  * @returns {Promise<object>} The updated game state.
  */
 export async function sendAction(actionType, actionData = {}) {
+    // If circuit breaker is active, don't send API requests except for critical actions
+    if (circuitBreakerActive && !['start_game', 'reset'].includes(actionType)) {
+        console.warn(`Circuit breaker active - local fallback for action: ${actionType}`);
+        // Return a minimal response to keep the game running
+        return { success: false, circuitBreakerActive: true };
+    }
+
     // If we're waiting for an animation to complete, don't send new actions
     // (except for hard_drop which should interrupt)
     if (waitingForAnimation && actionType !== 'hard_drop') {
@@ -37,7 +97,16 @@ export async function sendAction(actionType, actionData = {}) {
         return null;
     }
     
+    // For hard_drop, force reset any existing animation lock
+    if (actionType === 'hard_drop' && waitingForAnimation) {
+        resetAnimationLock();
+    }
+    
     try {
+        // Use fetch with timeout to prevent hanging requests
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        
         const response = await fetch(`${API_BASE_URL}/action`, {
             method: 'POST',
             headers: {
@@ -47,11 +116,23 @@ export async function sendAction(actionType, actionData = {}) {
                 type: actionType,
                 data: actionData,
             }),
+            signal: controller.signal
         });
+        
+        // Clear the timeout since we got a response
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
-            const errorData = await response.json();
+            const errorData = await response.json().catch(() => ({}));
             throw new Error(`API error: ${errorData.error || response.statusText}`);
+        }
+
+        // Reset consecutive failures on success
+        consecutiveFailures = 0;
+        
+        // If circuit breaker was active and we got a successful response, reset it
+        if (circuitBreakerActive) {
+            resetCircuitBreaker();
         }
 
         const result = await response.json();
@@ -59,20 +140,56 @@ export async function sendAction(actionType, actionData = {}) {
         // Check if there are matched positions that need animation
         if (result.matchedPositions && result.matchedPositions.length > 0) {
             console.log('Received matched positions, will start animation');
-            waitingForAnimation = true;
+            // Use the safer animation lock mechanism
+            setAnimationLock();
             
             // After the animation completes (1.5 seconds), send a follow-up action to clear the matches
             setTimeout(async () => {
                 console.log('Animation complete, clearing matches');
-                await sendClearMatches();
-                waitingForAnimation = false;
+                try {
+                    await sendClearMatches();
+                } catch (error) {
+                    console.error('Error during clear matches:', error);
+                } finally {
+                    // Always reset animation lock when done, even if there was an error
+                    resetAnimationLock();
+                }
             }, 1500); // Animation takes about 1.2s, add a little buffer
         }
         
         return result;
     } catch (error) {
-        console.error('Error sending action:', error);
-        throw error;
+        // Increment failure counter and check if we should activate circuit breaker
+        consecutiveFailures++;
+        console.error(`Error sending action (failure #${consecutiveFailures}):`, error);
+        
+        // Display user-friendly error message
+        const gameMessage = document.getElementById('game-message');
+        if (gameMessage) {
+            if (error.name === 'AbortError') {
+                gameMessage.textContent = 'Network request timed out. Game will continue.'; 
+            } else {
+                gameMessage.textContent = 'Connection issue. Game will continue in limited mode.';
+            }
+        }
+        
+        // If we've had too many consecutive failures, activate circuit breaker
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES && !circuitBreakerActive) {
+            console.warn('Too many consecutive API failures - activating circuit breaker');
+            circuitBreakerActive = true;
+            
+            // Try to recover after 30 seconds
+            if (circuitRecoveryTimeout) {
+                clearTimeout(circuitRecoveryTimeout);
+            }
+            
+            circuitRecoveryTimeout = setTimeout(() => {
+                resetCircuitBreaker();
+            }, 30000); // 30 seconds recovery time
+        }
+        
+        // Return a minimal response to keep the game running
+        return { success: false, error: error.message };
     }
 }
 
@@ -81,17 +198,39 @@ export async function sendAction(actionType, actionData = {}) {
  * @returns {Promise<object>} The updated game state.
  */
 async function sendClearMatches() {
+    // If circuit breaker is active, return a minimal response
+    if (circuitBreakerActive) {
+        console.warn('Circuit breaker active - skipping clear-matches request');
+        return { success: false, circuitBreakerActive: true };
+    }
+
     try {
+        // Use fetch with timeout to prevent hanging requests
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
         const response = await fetch(`${API_BASE_URL}/clear-matches`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-            }
+            },
+            signal: controller.signal
         });
 
+        // Clear the timeout since we got a response
+        clearTimeout(timeoutId);
+
         if (!response.ok) {
-            const errorData = await response.json();
+            const errorData = await response.json().catch(() => ({}));
             throw new Error(`API error: ${errorData.error || response.statusText}`);
+        }
+
+        // Reset consecutive failures on success
+        consecutiveFailures = 0;
+        
+        // If circuit breaker was active and we got a successful response, reset it
+        if (circuitBreakerActive) {
+            resetCircuitBreaker();
         }
 
         const result = await response.json();
@@ -100,11 +239,20 @@ async function sendClearMatches() {
         if (result.matchedPositions && result.matchedPositions.length > 0) {
             console.log('Chain reaction detected! More matches to animate');
             
+            // Use the safer animation lock mechanism
+            setAnimationLock();
+            
             // Start another animation cycle for the chain reaction
             setTimeout(async () => {
                 console.log('Chain reaction animation complete, clearing matches');
-                await sendClearMatches(); // Recursively call to handle multiple chain reactions
-                waitingForAnimation = false;
+                try {
+                    await sendClearMatches(); // Recursively call to handle multiple chain reactions
+                } catch (error) {
+                    console.error('Error during chain reaction clear:', error);
+                } finally {
+                    // Always reset animation lock when done, even if there was an error
+                    resetAnimationLock();
+                }
             }, 1500); // Animation takes about 1.2s, add a little buffer
             
             return result;
@@ -112,8 +260,38 @@ async function sendClearMatches() {
         
         return result;
     } catch (error) {
-        console.error('Error clearing matches:', error);
-        throw error;
+        // Increment failure counter and check if we should activate circuit breaker
+        consecutiveFailures++;
+        console.error(`Error clearing matches (failure #${consecutiveFailures}):`, error);
+        
+        // Display user-friendly error message
+        const gameMessage = document.getElementById('game-message');
+        if (gameMessage) {
+            if (error.name === 'AbortError') {
+                gameMessage.textContent = 'Network request timed out. Game will continue.'; 
+            } else {
+                gameMessage.textContent = 'Connection issue. Game will continue in limited mode.';
+            }
+        }
+        
+        // If we've had too many consecutive failures, activate circuit breaker
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES && !circuitBreakerActive) {
+            console.warn('Too many consecutive API failures - activating circuit breaker');
+            circuitBreakerActive = true;
+            
+            // Try to recover after 30 seconds
+            if (circuitRecoveryTimeout) {
+                clearTimeout(circuitRecoveryTimeout);
+            }
+            
+            circuitRecoveryTimeout = setTimeout(() => {
+                resetCircuitBreaker();
+            }, 30000); // 30 seconds recovery time
+        }
+        
+        // Return a minimal response to keep the game running
+        resetAnimationLock(); // Make sure to reset the lock on error
+        return { success: false, error: error.message };
     }
 }
 

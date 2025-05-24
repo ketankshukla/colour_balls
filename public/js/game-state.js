@@ -120,7 +120,48 @@ export async function handleAction(actionType, actionData = {}) {
         
         // If we got a response (might be null if animation is in progress)
         if (response) {
-            // Update the game state with the server response
+            // Check if the response indicates a circuit breaker or error condition
+            if (response.circuitBreakerActive) {
+                console.warn(`Circuit breaker active during ${actionType} - using fallback behavior`);
+                
+                // For movement actions, apply a basic client-side prediction
+                // This allows the game to remain playable even when backend is unreachable
+                if (['move_left', 'move_right', 'move_down', 'rotate'].includes(actionType) && currentGameState.currentPiece) {
+                    const piece = { ...currentGameState.currentPiece };
+                    
+                    // Apply basic movement prediction
+                    switch (actionType) {
+                        case 'move_left':
+                            if (piece.x > 0) piece.x -= 1;
+                            break;
+                        case 'move_right':
+                            if (piece.x < (currentGameState.board[0].length - 1)) piece.x += 1;
+                            break;
+                        case 'move_down':
+                            piece.y += 1;
+                            break;
+                        case 'rotate':
+                            // Simple rotation prediction (just visual, no collision detection)
+                            piece.orientation = (piece.orientation + 90) % 360;
+                            break;
+                    }
+                    
+                    // Update only the piece position in our local state
+                    currentGameState.currentPiece = piece;
+                    renderGame();
+                }
+                
+                return response;
+            }
+            
+            // If there was an error but not circuit breaker, log it but don't crash
+            if (response.error) {
+                console.warn(`Error in action ${actionType}: ${response.error}`);
+                // Still allow the game to continue
+                return response;
+            }
+            
+            // Normal case - update the game state with the server response
             updateGameState(response);
             
             // If there are matched positions, they will be shown with flashing animation
@@ -130,7 +171,13 @@ export async function handleAction(actionType, actionData = {}) {
         return response;
     } catch (error) {
         console.error(`Error handling action ${actionType}:`, error);
-        document.getElementById('game-message').textContent = `Error: ${error.message}. Check console.`;
+        const gameMessage = document.getElementById('game-message');
+        if (gameMessage) {
+            gameMessage.textContent = `Error: ${error.message}. Game will continue in limited mode.`;
+        }
+        
+        // Return a minimal response to keep the game running
+        return { success: false, error: error.message };
     }
 }
 
